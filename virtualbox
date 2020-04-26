@@ -1,0 +1,122 @@
+流れ
+・今回作成する環境
+＞VirtualBoxでcentos/7
+＞Docker（Laradock）でapache、mysql
+１、インストールされていないものがあれば必要なものをインストールする
+＞virtualbox
+＞vagrant
+＞composer
+２、プロジェクト用のフォルダを作成する（以下ではデスクトップにhogeProjectフォルダを作成した体での記述）
+３、「$ vagrant box add centos/7」を実行して必要なboxをダウンロードする
+４、/hogeProjectで「$ vagrant init centos/7」を実行
+５、「vagrantfile」を編集する
+６、/hogeProjectで「$ vagrant plugin install vagrant-vbguest」を実行
+７、/hogeProjectで「$ composer create-project laravel/laravel --prefer-dist hoge 5.7」を実行
+８、/hogeProject/hogeで「$ git clone https://github.com/laradock/laradock.git」を実行
+９、/hogeProject/hoge/laradockで「$ cp env-example .env」を実行
+１０、「.env」「default.apache.conf」を編集する
+１１、/hogeProjectで「$ vagrant reload」を実行
+１２、/hogeProjectで「$ vagrant ssh」を実行
+１３、vagrant内でDockerインストール
+１４、/vagrantで「$ docker-compose build workspace apache2 mysql」
+
+
+Vagrantファイル
+
+Vagrantファイルとは
+Vagrantの設定ファイルで「vagrant init ○○」をしたディレクトリに作成される「vagrantfile」のこと。
+変更個所
+#config.vm.network "forwarded_port", guest: 80, host: 8080
+まずはコメントアウトを消しましょう（先頭の#を消すってこと）
+hostのポートがデフォルトだと8080になっているので、もし他にもvagrantとかを起動していて被りそうなら変更が必要。
+#config.vm.network "private_network", ip: "192.168.33.10"
+まずはコメントアウトを消しましょう。
+これはホストOSのブラウザでアクセスするときのIPって感じ。
+他にもVagrantを起動しているなら被らないように192.168.55.10とかに変更して別セグメントにしよう。
+#config.vm.synced_folder "../data", "/vagrant_data"
+まずはコメントアウトを消しましょう。
+これはホストOSとゲストOSでのフォルダー共有設定。
+"../data"ってとこがホストOSのフォルダーだから「Desktop/プロジェクト名/vagrantfile」っていう構成の場合、"./"に書き換えておけば「Desktop/プロジェクト名」の中身が全てゲストOSと同期される。
+"/vagrant_data"ってとこがゲストOS側の共有したファイルが置かれる場所で、何度もアクセスするため文字数が長いとめんどくさいので"/vagrant"に書き換えた方が良いと思う。
+
+
+envファイル
+
+envファイルとは
+Laradockの環境変数ファイルでLaradock直下にある「env-example」を元に作成する。
+具体的には「$ cp env-example .env」を実行すると.envという名前でコピーされる。
+Dockerでのバージョンやパスなど、いろんなものをこのファイルでは変数に代入している。
+あくまでこのファイルでは変数に代入してるだけ。
+なので、例えばNginxのポート番号はこのファイルでは「NGINX_HOST_HTTP_PORT」という変数に代入されてdocker-compose.ymlで使用される。
+この場合にこのファイルではポート番号「80」で、docker-compose.ymlの「${NGINX_HOST_HTTP_PORT}」という記述を消して「82」と書き換えた場合、実際のポート番号は「82」になる。
+ただ、このファイルで定義した環境変数を複数個所で使用している場合も多々あるので、出来る限りこのファイルで書き換えた方が簡単だし修正も楽。
+変更箇所：Paths
+DATA_PATH_HOST=~/.laradock/data
+ドッカー内のデータをホストのどこに保存するかの設定。
+「~/.○○/data」の○○の部分にプロジェクト名などを入れる。
+変更箇所：PHP Version
+PHP_VERSION=7.3
+ここで使いたいPHPバージョンに書き換える。
+変更箇所：NGINX
+NGINX_HOST_HTTP_PORT=80
+これが「http://localhost:○○」の○○にあたるポート番号。
+他のプロジェクトだったり、Apacheも使う場合などは被らないように書き換える必要がある。
+NGINX_HOST_HTTPS_PORT=443
+１つ上のもののhttps版。
+これも他と被ってはいけない。
+変更箇所：APACHE
+APACHE_HOST_HTTP_PORT=80
+NGINXのポート設定と同じく、これが「http://localhost:○○」の○○にあたる。
+他と被ってはいけない。
+APACHE_HOST_HTTPS_PORT=443
+１つ上のもののhttps版。
+他と被ってはいけない。
+変更箇所：MYSQL
+MYSQL_VERSION=latest
+バージョン。
+MYSQL_DATABASE=default
+データベース名。
+MYSQL_USER=default
+ユーザー名。
+MYSQL_PASSWORD=secret
+パスワード。
+MYSQL_PORT=3306
+当然ながらこのポート番号も他と被ってはいけない。
+変更箇所：POSTGRES
+POSTGRES_VERSION=alpine
+バージョン。
+POSTGRES_DB=default
+データベース名。
+POSTGRES_USER=default
+ユーザー名。
+POSTGRES_PASSWORD=secret
+パスワード。
+POSTGRES_PORT=5432
+当然ながらこのポート番号も他と被ってはいけない。
+docker-compose.ymlファイル
+docker-compose.ymlファイルとは
+通称ymlファイルで、laradock直下にある。
+docker-composeコマンドを実行すると、このファイルを元に動作する。
+${}で書かれているものはenvファイルで設定されている環境変数。
+Laradockではほとんどのことが環境変数としてenvファイルで設定されているため、このファイルをいじることはあまり無い。
+Apacheの設定ファイル
+Apacheの設定ファイルについて
+Apacheの設定ファイルは、laradock/apache2/sites/にある「default.apache.conf」。
+
+変更箇所
+ServerName laradock.test
+アクセスするサーバー名なので、ここは「ServerName localhost」に変更すればいい。
+DocumentRoot /var/www/
+プログラムのソースコードを置く場所を指定する。
+envファイルの「APP_CODE_PATH_HOST」と「APP_CODE_PATH_CONTAINER」を変更していなければlaradockの親ディレクトリが「/var/www/」の場所になる。
+例えば「Desktop/プロジェクト名/laradock」となっている場合、「プロジェクト名」の場所が「/var/www/」になる。
+なので、「Desktop/プロジェクト名/public」にプログラムのソースコードを保存している場合は「DocumentRoot /var/www/public」に書き換えれば良い。
+<Directory "/var/www/">
+恐らくアクセス権限に関する記述なので、上の「DocumentRoot」と同じディレクトリを指定すれば良い。
+Nginxの設定ファイル
+Nginxの設定ファイルについて
+Nginxの設定ファイルは、laradock/nginx/sites/の中にある「default.conf」。
+
+変更箇所
+root /var/www/public;
+Apache設定のDocumentRootと同じ考え方。
